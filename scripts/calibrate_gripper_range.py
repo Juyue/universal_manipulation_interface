@@ -82,6 +82,8 @@ def main(input, output, tag_det_threshold, nominal_z):
         'max_width': max_width,
         'min_width': min_width
     }
+    print(f"Gripper calibration result for tag_result {input}, Unit[meter]")
+    print(result)
     json.dump(result, open(output, 'w'), indent=2)
 
 # %%

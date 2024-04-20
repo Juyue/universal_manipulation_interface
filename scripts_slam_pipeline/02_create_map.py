@@ -1,5 +1,6 @@
 """
-python scripts_slam_pipeline/00_process_videos.py -i data_workspace/toss_objects/20231113/mapping
+python scripts_slam_pipeline/02_create_map.py -i data_workspace/toss_objects/20231113/mapping
+python scripts_slam_pipeline/02_create_map.py -i ~/datasets/umi/demo_sessions/20240417_writingc/demos
 """
 
 # %%

@@ -161,7 +161,7 @@ def main(input, output, out_res, out_fov, compression_level,
         _ = out_replay_buffer.data.require_dataset(
             name=name,
             shape=(out_replay_buffer['robot0_eef_pos'].shape[0],) + out_res + (3,),
-            chunks=(1,) + out_res + (3,),
+            chunks=(1,) + out_res + (3,), # The chunk size determines the granularity at which the data is stored and accessed.
             compressor=img_compressor,
             dtype=np.uint8
         )

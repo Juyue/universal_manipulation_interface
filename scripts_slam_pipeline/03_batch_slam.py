@@ -1,5 +1,6 @@
 """
 python scripts_slam_pipeline/03_batch_slam.py -i data_workspace/fold_cloth_20231214/demos
+python scripts_slam_pipeline/03_batch_slam.py -i ~/datasets/umi/demo_sessions/20240417_writingc/demos --max_lost_frames 3600
 """
 # %%
 import sys

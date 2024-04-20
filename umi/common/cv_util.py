@@ -189,7 +189,7 @@ def detect_localize_aruco_tags(
             'tvec': tvec.squeeze(),
             'corners': this_corners.squeeze()
         }
-    return tag_dict
+    return tag_dict 
 
 def get_charuco_board(
         aruco_dict=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100), 

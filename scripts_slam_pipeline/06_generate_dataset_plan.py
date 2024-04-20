@@ -1,5 +1,8 @@
 """
 python scripts_slam_pipeline/06_generate_dataset_plan.py -i data_workspace/cup_in_the_wild/20240105_zhenjia_packard_2nd_conference_room
+python scripts_slam_pipeline/06_generate_dataset_plan.py -i ~/example_demo_session
+
+python scripts_slam_pipeline/06_generate_dataset_plan.py -i ~/datasets/umi/demo_sessions/20240417_writingc --min-lost-frames 1200 --min-effective-frames 2400
 """
 
 # %%
@@ -62,8 +65,8 @@ def pose_interp_from_df(df, start_timestamp=0.0, tx_base_slam=None):
     cam_pose[:,3,3] = 1
     cam_pose[:,:3,3] = cam_pos
     cam_pose[:,:3,:3] = cam_rot.as_matrix()
-    tx_slam_cam = cam_pose
-    tx_base_cam = tx_slam_cam
+    tx_slam_cam = cam_pose # cam in slam
+    tx_base_cam = tx_slam_cam # cam in base
     if tx_base_slam is not None:
         tx_base_cam = tx_base_slam @ tx_slam_cam
     pose_interp = PoseInterpolator(
@@ -87,8 +90,17 @@ def get_x_projection(tx_tag_this, tx_tag_other):
 @click.option('-nz', '--nominal_z', type=float, default=0.072, help="nominal Z value for gripper finger tag")
 @click.option('-ml', '--min_episode_length', type=int, default=24)
 @click.option('--ignore_cameras', type=str, default=None, help="comma separated string of camera serials to ignore")
+@click.option("--max-lost-frames", type=int, default=60)
+@click.option("--min-effective-frames", type=int, default=0)
 def main(input, output, tcp_offset, tx_slam_tag,
-         nominal_z, min_episode_length, ignore_cameras):
+         nominal_z, min_episode_length, ignore_cameras, max_lost_frames, min_effective_frames):
+        
+    # import debugpy
+    # port = 5700
+    # debugpy.listen(address=("localhost", port))
+    # print(f"Now is a good time to attach your debugger: Run: Python: Attach {port}")
+    # debugpy.wait_for_client()
+    
     # %% stage 0
     # gather inputs
     input_path = pathlib.Path(os.path.expanduser(input)).absolute()
@@ -208,6 +220,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
 
     # %% stage 2
     # match videos into demos
+    # Each demo episode is defined as a set of videos that are recording at the same time.
     # output:
     # demo_data_list = {
     #     "video_idxs": [int],
@@ -301,17 +314,17 @@ def main(input, output, tcp_offset, tx_slam_tag,
         tag_stats = collections.defaultdict(lambda: 0.0)
         for k, v in tag_counts.items():
             tag_stats[k] = v / n_frames
-            
+          
         # classify gripper by tag
         # tag 0, 1 are reserved for gripper 0
         # tag 6, 7 are reserved for gripper 1
-        max_tag_id = np.max(list(tag_stats.keys()))
+        max_tag_id = np.max(list(tag_stats.keys())) # tag_id=1
         tag_per_gripper = 6
-        max_gripper_id = max_tag_id // tag_per_gripper
+        max_gripper_id = max_tag_id // tag_per_gripper # max_gripper_id=1
         
         gripper_prob_map = dict()
         for gripper_id in range(max_gripper_id+1):
-            left_id = gripper_id * tag_per_gripper
+            left_id = gripper_id * tag_per_gripper # left_id = 0 
             right_id = left_id + 1
             left_prob = tag_stats[left_id]
             right_prob = tag_stats[right_id]
@@ -388,7 +401,6 @@ def main(input, output, tcp_offset, tx_slam_tag,
         cam_serials = list()
         gripper_vid_idxs = list()
         pose_interps = list()
-
         for vid_idx in video_idxs:
             row = video_meta_df.loc[vid_idx]
             if row.gripper_hardware_id < 0:
@@ -408,20 +420,24 @@ def main(input, output, tcp_offset, tx_slam_tag,
                 break
 
             csv_df = pd.read_csv(csv_path)
+            print(f"There are lost {csv_df['is_lost'].sum()} frames and {len(csv_df) - csv_df['is_lost'].sum()} effective frames in {vid_dir.name}.")
             
-            if csv_df['is_lost'].sum() > 10:
-                # drop episode if too many lost frames
+            if csv_df['is_lost'].sum() > max_lost_frames: #     # drop episode if too many lost frames
                 # unreliable tracking
+                print(f"Excluded demo {vid_dir.name} from left/right disambiguation.")
                 break
             
-            if (~csv_df['is_lost']).sum() < 60:
+            if (~csv_df['is_lost']).sum() < min_effective_frames:
+                print(f"Excluded demo {vid_dir.name} from left/right disambiguation.")
                 break
-
+            
+            # df: tx_slam_cam, i.i. camera pose in slam frame
             df = csv_df.loc[~csv_df['is_lost']]
+            # pose_interp is tx_tag_cam, i.e. camera pose in tag frame
             pose_interp = pose_interp_from_df(df, 
                 start_timestamp=row['start_timestamp'], 
                 # build pose in tag frame (z-up)
-                tx_base_slam=tx_tag_slam)
+                tx_base_slam=tx_tag_slam) # tag = table_tag. A coordinates shared by all cameras
             pose_interps.append(pose_interp)
         
         if len(pose_interps) != n_gripper_cams:
@@ -434,7 +450,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
         t_samples = np.linspace(start_timestamp, end_timestamp, n_samples)
         pose_samples = [pose_to_mat(interp(t_samples)) for interp in pose_interps]
         
-        # heuristic
+        # ??? heuristic TODO: visualize this one collected after collecting bimanual data? Or ask the author for the data?
         # project other camera's position 
         # to the cross product of this camera's z (forward) and global z (up)
         # which is the "right" of the camera
@@ -499,11 +515,11 @@ def main(input, output, tcp_offset, tx_slam_tag,
     # all_plans = [{
     #     "episode_timestamps": np.ndarray,
     #     "grippers": [{
-    #         "tcp_pose": np.ndarray,
-    #         "gripper_width": np.ndarray
+    #         "tcp_pose": np.ndarray, # (t, 6)
+    #         "gripper_width": np.ndarray # (t,)
     #     }],
     #     "cameras": [{
-    #         "video_path": str,
+    #         "video_path": str, # example: 'demo_C3441328164125_2024.01.10_10.57.34.882133/raw_video.mp4'
     #         "video_start_end": Tuple[int,int]
     #     }]
     # }]
@@ -602,13 +618,13 @@ def main(input, output, tcp_offset, tx_slam_tag,
 
             # basic filtering to remove bad tracking
             n_frames_lost = (~is_tracked).sum()
-            if n_frames_lost > 10:
+            if n_frames_lost > max_lost_frames:
                 print(f"Skipping {video_dir.name}, {n_frames_lost} frames are lost.")
                 dropped_camera_count[row['camera_serial']] += 1
                 continue
 
             n_frames_valid = is_tracked.sum()
-            if n_frames_valid < 60:
+            if n_frames_valid < min_effective_frames:
                 print(f"Skipping {video_dir.name}, only {n_frames_valid} frames are valid.")
                 dropped_camera_count[row['camera_serial']] += 1
                 continue
@@ -764,6 +780,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
 
     used_ratio = total_used_time / total_avaliable_time
     print(f"{int(used_ratio*100)}% of raw data are used.")
+    print(f"Total used time: {total_used_time} seconds.")
 
     print(dropped_camera_count)
     print("n_dropped_demos", n_dropped_demos)

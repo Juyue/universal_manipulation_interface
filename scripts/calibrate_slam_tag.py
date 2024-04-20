@@ -37,8 +37,12 @@ def main(tag_detection, csv_trajectory, output, tag_id, keyframe_only):
 
     # filter pose
     is_valid = ~df['is_lost']
+    print(f"There are {is_valid.sum()} frames being used to calculate tag pose in slam frame. (After filtering with is_lost)")
     if keyframe_only:
         is_valid &= df['is_keyframe']
+        print(f"There are {is_valid.sum()} frames being used to calculate tag pose in slam frame. (After filtering with is_keyframe)")
+    print(f"There are {is_valid.sum()} frames being used to calculate tag pose in slam frame. (After filtering with is_keyframe&is_lost)")
+    
 
     # convert to mat
     cam_pose_timestamps = df['timestamp'].loc[is_valid].to_numpy()
@@ -67,7 +71,9 @@ def main(tag_detection, csv_trajectory, output, tag_id, keyframe_only):
         
         tag = tag_dict[tag_id]
         pose = np.concatenate([tag['tvec'], tag['rvec']])
+        # tag in camera frame 
         tx_cam_tag = pose_to_mat(pose)
+        # camera in slam frame (slam frame is the camera frame in the first frame of the video)
         tx_slam_cam = cam_pose[tum_idx]
 
         # filter cam pose
@@ -82,11 +88,12 @@ def main(tag_detection, csv_trajectory, output, tag_id, keyframe_only):
         dist_to_center = np.linalg.norm(tag_center_pix - img_center) / img_center[1]
         if dist_to_center > 0.6:
             continue
-
+        # tag in slam frame
         tx_slam_tag = tx_slam_cam @ tx_cam_tag
         all_tx_slam_tag.append(tx_slam_tag)
         all_idxs.append(tum_idx)
     all_tx_slam_tag = np.array(all_tx_slam_tag)
+    print(f"There are {len(all_tx_slam_tag)} frames left being used to calculate tag pose in slam frame. (After filtering with dist_to_cam and dist_to_center)")
 
     # find transform closest to the mean
     all_slam_tag_pos = all_tx_slam_tag[:,:3,3]
@@ -94,11 +101,13 @@ def main(tag_detection, csv_trajectory, output, tag_id, keyframe_only):
     dists = np.linalg.norm((all_tx_slam_tag[:,:3,3] - median), axis=-1)
     threshold = np.quantile(dists, 0.9)
     is_valid = dists < threshold
+    print(f"There are {is_valid.sum()} frames left being used to calculate tag pose in slam frame.")
     std = all_slam_tag_pos[is_valid].std(axis=0)
     mean = all_slam_tag_pos[is_valid].mean(axis=0)
     dists = np.linalg.norm((all_tx_slam_tag[is_valid][:,:3,3] - mean), axis=-1)
     nn_idx = np.argmin(dists)
     tx_slam_tag = all_tx_slam_tag[is_valid][nn_idx]
+    print(f"Position of tag in slam is (x, y, z)[m]={tx_slam_tag[:3,3]}")
     print("Tag detection standard deviation (cm) < 0.9 quantile")
     print(std * 100)
 

@@ -253,21 +253,30 @@ class TimmObsEncoder(ModuleAttrMixin):
             return feature
         
     def forward(self, obs_dict):
+        """ 
+        obs_dict: 
+        camera0_rgb torch.Size([1, 2, 3, 224, 224])
+        robot0_eef_pos torch.Size([1, 2, 3])
+        robot0_eef_rot_axis_angle torch.Size([1, 2, 6]) # TODO: why axis_angle is 6?
+        robot0_gripper_width torch.Size([1, 2, 1])
+        robot0_eef_rot_axis_angle_wrt_start torch.Size([1, 2, 6])
+        """ 
+        
         features = list()
         batch_size = next(iter(obs_dict.values())).shape[0]
         
         # process rgb input
         for key in self.rgb_keys:
-            img = obs_dict[key]
+            img = obs_dict[key] # (B, T, C, H, W), (1, 2, 3, 224, 224)
             B, T = img.shape[:2]
             assert B == batch_size
             assert img.shape[2:] == self.key_shape_map[key]
             img = img.reshape(B*T, *img.shape[2:])
             img = self.key_transform_map[key](img)
-            raw_feature = self.key_model_map[key](img)
-            feature = self.aggregate_feature(raw_feature)
+            raw_feature = self.key_model_map[key](img) # CLS token is(2, 197, 768)
+            feature = self.aggregate_feature(raw_feature) # If vit, get CLS token, raw_feature[:,0,:]
             assert len(feature.shape) == 2 and feature.shape[0] == B * T
-            features.append(feature.reshape(B, -1))
+            features.append(feature.reshape(B, -1)) # collapse time dimension
 
         # process lowdim input
         for key in self.low_dim_keys:
@@ -275,10 +284,11 @@ class TimmObsEncoder(ModuleAttrMixin):
             B, T = data.shape[:2]
             assert B == batch_size
             assert data.shape[2:] == self.key_shape_map[key]
-            features.append(data.reshape(B, -1))
+            features.append(data.reshape(B, -1)) # collapse time dimension
+        for k, v in obs_dict.items(): print(k, v.shape)
         
         # concatenate all features
-        result = torch.cat(features, dim=-1)
+        result = torch.cat(features, dim=-1) # (B, 1568); 1568 = (768 + 3 + 6 + 6 + 1)
 
         return result
     

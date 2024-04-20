@@ -309,6 +309,7 @@ class UmiDataset(BaseDataset):
             ], axis=-1))
             
             # get start pose
+            # Questions: Why only the first element is taken? But relative pose is performed for both pose??
             start_pose = obs_dict[f'robot{robot_id}_demo_start_pose'][0]
             # HACK: add noise to episode start pose
             start_pose += np.random.normal(scale=[0.05,0.05,0.05,0.05,0.05,0.05],size=start_pose.shape)

@@ -1,5 +1,9 @@
 """
 python scripts_slam_pipeline/05_run_calibrations.py data_workspace/cup_in_the_wild/20240105_zhenjia_packard_2nd_conference_room
+
+python scripts_slam_pipeline/05_run_calibrations.py ~/example_demo_sessions/demo
+python /home/ubuntu/universal_manipulation_interface/scripts/calibrate_slam_tag.py --tag_detection /home/ubuntu/example_demo_session/demos/mapping/tag_detection.pkl --csv_trajectory /home/ubuntu/example_demo_session/demos/mapping/camera_trajectory.csv --output /home/ubuntu/example_demo_session/demos/mapping/tx_slam_tag.json --keyframe_only
+python /home/ubuntu/universal_manipulation_interface/scripts/calibrate_gripper_range.py --input /home/ubuntu/example_demo_session/demos/gripper_calibration_C3441328164125_2024.01.10_10.34.30.966267/tag_detection.pkl --output /home/ubuntu/example_demo_session/demos/gripper_calibration_C3441328164125_2024.01.10_10.34.30.966267/gripper_range.json
 """
 # %%
 import sys

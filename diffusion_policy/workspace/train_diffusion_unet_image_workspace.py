@@ -60,7 +60,7 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
         obs_encorder_lr = cfg.optimizer.lr
         if cfg.policy.obs_encoder.pretrained:
             obs_encorder_lr *= 0.1
-            print('==> reduce pretrained obs_encorder\'s lr')
+            print('==> reduce pretrained obs_encorder\'s lr by 0.1')
         obs_encorder_params = list()
         for param in self.model.obs_encoder.parameters():
             if param.requires_grad:

@@ -19,7 +19,8 @@ import subprocess
 @click.command()
 @click.argument('session_dir', nargs=-1)
 @click.option('-c', '--calibration_dir', type=str, default=None)
-def main(session_dir, calibration_dir):
+@click.option('-m', '--max_lost_frames', type=int, default=60)
+def main(session_dir, calibration_dir, max_lost_frames):
     script_dir = pathlib.Path(__file__).parent.joinpath('scripts_slam_pipeline')
     if calibration_dir is None:
         calibration_dir = pathlib.Path(__file__).parent.joinpath('example', 'calibration')
@@ -73,7 +74,8 @@ def main(session_dir, calibration_dir):
         cmd = [
             'python', str(script_path),
             '--input_dir', str(demo_dir),
-            '--map_path', str(map_path)
+            '--map_path', str(map_path),
+            '--max_lost_frames', str(max_lost_frames),
         ]
         result = subprocess.run(cmd)
         assert result.returncode == 0
